@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Route Checkpoint Tracker</title>
+<title>Route Tracker</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#18202b;background:#f3f5f8}
@@ -33,7 +33,6 @@ input{min-width:0;flex:1}button{cursor:pointer;font-weight:600}button.primary{ba
 </style>
 </head>
 <body>
-<header><h1>Route Checkpoint Tracker</h1><p>Big points = timing checkpoints · small dots = optional intermediate stops</p></header>
 <main>
 <section class="panel">
 <h2>Create / edit route</h2>
@@ -67,25 +66,28 @@ function refreshPoints(){
  const groups=[...new Set(points.map(p=>p.group).filter(Boolean))];
  let html='',seen=new Set();
  points.forEach((p,i)=>{
-  const row=`<div class="stop"><input type="checkbox" class="pointSelect" value="${i}" aria-label="Select ${safe(p.name)}"><span class="num">${i+1}</span><div class="info"><div class="name">${safe(shortName(p.name))}</div><div class="sub">${p.group?'Area: '+safe(p.group):(p.type==='checkpoint'?'Timing checkpoint':'Intermediate dot')}</div></div><span class="badge ${p.group?'':'smallstop'}">${p.group?'AREA':p.type==='checkpoint'?'BIG':'DOT'}</span><button class="small" onclick="movePoint(${i},-1)" title="Move up">↑</button><button class="small" onclick="movePoint(${i},1)" title="Move down">↓</button><button class="small" onclick="togglePoint(${i})" title="Toggle checkpoint/dot">⇄</button><button class="small warn" onclick="removePoint(${i})" title="Remove">×</button></div>`;
-  if(p.group){if(!seen.has(p.group)){seen.add(p.group);let members=points.map((x,j)=>x.group===p.group?j:-1).filter(j=>j>=0);html+=`<div class="groupbox"><div class="grouphead">▣ ${safe(p.group)} · ${members.length} dots</div>${members.map(j=>{let q=points[j];return `<div class="stop"><input type="checkbox" class="pointSelect" value="${j}" aria-label="Select ${safe(q.name)}"><span class="num">${j+1}</span><div class="info"><div class="name">${safe(shortName(q.name))}</div><div class="sub">${j===members[0]?'Area entry':j===members[members.length-1]?'Area exit':'Grouped dot'}</div></div><button class="small" onclick="movePoint(${j},-1)" title="Move up">↑</button><button class="small" onclick="movePoint(${j},1)" title="Move down">↓</button><button class="small warn" onclick="removePoint(${j})" title="Remove">×</button></div>`}).join('')}</div>`}}
+  const row=`<div class="stop"><input type="checkbox" class="pointSelect" value="${i}" aria-label="Select ${safe(p.name)}"><span class="num">${i+1}</span><div class="info"><div class="name">${safe(shortName(p.name,p.locality))}</div><div class="sub">${p.group?'Area: '+safe(p.group):(p.type==='checkpoint'?'Timing checkpoint':'Intermediate dot')}</div></div><span class="badge ${p.group?'':'smallstop'}">${p.group?'AREA':p.type==='checkpoint'?'BIG':'DOT'}</span><button class="small" onclick="movePoint(${i},-1)" title="Move up">↑</button><button class="small" onclick="movePoint(${i},1)" title="Move down">↓</button><button class="small" onclick="togglePoint(${i})" title="Toggle checkpoint/dot">⇄</button><button class="small warn" onclick="removePoint(${i})" title="Remove">×</button></div>`;
+  if(p.group){if(!seen.has(p.group)){seen.add(p.group);let members=points.map((x,j)=>x.group===p.group?j:-1).filter(j=>j>=0);html+=`<div class="groupbox"><div class="grouphead">▣ ${safe(p.group)} · ${members.length} dots</div>${members.map(j=>{let q=points[j];return `<div class="stop"><input type="checkbox" class="pointSelect" value="${j}" aria-label="Select ${safe(q.name)}"><span class="num">${j+1}</span><div class="info"><div class="name">${safe(shortName(q.name,q.locality))}</div><div class="sub">${j===members[0]?'Area entry':j===members[members.length-1]?'Area exit':'Grouped dot'}</div></div><button class="small" onclick="movePoint(${j},-1)" title="Move up">↑</button><button class="small" onclick="movePoint(${j},1)" title="Move down">↓</button><button class="small warn" onclick="removePoint(${j})" title="Remove">×</button></div>`}).join('')}</div>`}}
   else html+=row;
  });
  $('stops').innerHTML=html||'<p class="note">No stops added yet.</p>';
  redrawMarkers();saveData();renderStats();
 }
-function shortName(name){
+function shortName(name, locality=''){
  let parts=String(name||'').split(',').map(x=>x.trim()).filter(Boolean);
  if(!parts.length)return String(name||'');
  const isHouseNumber=s=>/^\d+[a-zA-Z]?(?:[-/]\d+[a-zA-Z]?)?$/.test(s);
  let street='',number='';
  if(parts.length>1&&isHouseNumber(parts[0])){number=parts[0];street=parts[1]}
  else {street=parts[0];let m=street.match(/^(.*?)[ ,]+(\d+[a-zA-Z]?(?:[-/]\d+[a-zA-Z]?)?)$/);if(m){street=m[1].trim();number=m[2]}}
- const provinces=['Drenthe','Flevoland','Friesland','Gelderland','Groningen','Limburg','Noord-Brabant','Noord-Holland','Overijssel','Utrecht','Zeeland','Zuid-Holland'];
- let city='';
- for(let i=2;i<parts.length;i++){if(provinces.includes(parts[i])){city=parts[i-1]||'';break}}
- if(!city){let pc=parts.findIndex(x=>/^\d{4}\s?[A-Z]{2}$/i.test(x));if(pc>2&&parts[pc-1]&&!/Nederland|Netherlands/i.test(parts[pc-1]))city=parts[pc-1]}
- if(!city){let candidates=parts.slice(2).filter(x=>!/^\d{4}\s?[A-Z]{2}$/i.test(x)&&!/Nederland|Netherlands|Zeeland/i.test(x));city=candidates.length?candidates[Math.min(2,candidates.length-1)]:''}
+ let city=locality||'';
+ if(!city){
+  // Nominatim display names commonly list the village/town immediately after the street.
+  // Prefer that settlement instead of the municipality (e.g. Meliskerke, not Veere).
+  const candidates=parts.slice(street===parts[0]?1:2);
+  const excluded=/^(Nederland|Netherlands|Zeeland|Drenthe|Flevoland|Friesland|Gelderland|Groningen|Limburg|Noord-Brabant|Noord-Holland|Overijssel|Utrecht|Zuid-Holland)$/i;
+  city=candidates.find(x=>!/^\d{4}\s?[A-Z]{2}$/i.test(x)&&!excluded.test(x)&&!/gemeente|municipality/i.test(x))||'';
+ }
  return [street,number,city].filter(Boolean).join(' ');
 }
 $('groupSelected').onclick=()=>{let ids=[...document.querySelectorAll('.pointSelect:checked')].map(x=>+x.value);if(ids.length<2)return alert('Select at least two small dots.');if(ids.some(i=>points[i].type!=='small'))return alert('Only small dots can be grouped.');let name=prompt('Name this area (for example, Koudekerke):');if(!name||!name.trim())return;let old=new Set(ids.map(i=>points[i].group).filter(Boolean));if(old.size&&!confirm('Some selected dots are already grouped. Replace their current group?'))return;ids.forEach(i=>points[i].group=name.trim());refreshPoints()};
@@ -94,8 +96,8 @@ window.movePoint=(i,d)=>{let j=i+d;if(j<0||j>=points.length)return;[points[i],po
 window.togglePoint=i=>{if(points[i].group)delete points[i].group;points[i].type=points[i].type==='checkpoint'?'small':'checkpoint';refreshPoints()};
 window.removePoint=i=>{points.splice(i,1);refreshPoints()};
 function redrawMarkers(){markers.forEach(m=>map.removeLayer(m));markers=[];points.forEach((p,i)=>{if(!p.lat||!p.lon)return;let color=p.type==='checkpoint'?'#1565c0':'#64748b';let icon=L.divIcon({className:'',html:`<div style="width:26px;height:26px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 1px 5px #0005;color:white;text-align:center;line-height:20px;font-weight:bold">${i+1}</div>`,iconSize:[26,26],iconAnchor:[13,13]});let m=L.marker([p.lat,p.lon],{icon}).addTo(map).bindPopup(`${i+1}. ${safe(p.name)}<br>${p.type==='checkpoint'?'Timing checkpoint':'Small dot'}`);markers.push(m)})}
-async function geocode(q){let url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q='+encodeURIComponent(q);let r=await fetch(url);if(!r.ok)throw new Error('Address lookup failed');let d=await r.json();if(!d.length)throw new Error('Address not found. Try a more specific address.');return d[0]}
-$('addPoint').onclick=async()=>{let q=$('address').value.trim();if(!q)return alert('Enter an address first.');$('addPoint').disabled=true;try{let result=await geocode(q);points.push({name:result.display_name,lat:+result.lat,lon:+result.lon,type:$('pointType').value});$('address').value='';refreshPoints();map.setView([result.lat,result.lon],13)}catch(e){alert(e.message)}finally{$('addPoint').disabled=false}};
+async function geocode(q){let url='https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&q='+encodeURIComponent(q);let r=await fetch(url);if(!r.ok)throw new Error('Address lookup failed');let d=await r.json();if(!d.length)throw new Error('Address not found. Try a more specific address.');return d[0]}
+$('addPoint').onclick=async()=>{let q=$('address').value.trim();if(!q)return alert('Enter an address first.');$('addPoint').disabled=true;try{let result=await geocode(q);let a=result.address||{};let locality=a.village||a.hamlet||a.town||a.suburb||a.city_district||a.city||a.municipality||'';points.push({name:result.display_name,locality,lat:+result.lat,lon:+result.lon,type:$('pointType').value});$('address').value='';refreshPoints();map.setView([result.lat,result.lon],13)}catch(e){alert(e.message)}finally{$('addPoint').disabled=false}};
 $('routeMap').onclick=async()=>{let valid=points.filter(p=>p.lat&&p.lon);if(valid.length<2)return alert('Add at least two mapped points.');$('routeMap').disabled=true;try{let coords=valid.map(p=>`${p.lon},${p.lat}`).join(';');let r=await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);let d=await r.json();if(d.code!=='Ok')throw new Error(d.message||'Routing failed');if(routeLine)map.removeLayer(routeLine);routeLine=L.geoJSON(d.routes[0].geometry,{style:{color:'#2563eb',weight:5,opacity:.8}}).addTo(map);map.fitBounds(routeLine.getBounds(),{padding:[20,20]});alert(`Road route drawn. Estimated driving time: ${fmt(d.routes[0].duration*1000)}. Estimated distance: ${(d.routes[0].distance/1000).toFixed(1)} km.`)}catch(e){alert('Could not calculate route: '+e.message)}finally{$('routeMap').disabled=false}};
 $('clearPoints').onclick=()=>{if(confirm('Remove all points from the current route?')){points=[];if(routeLine){map.removeLayer(routeLine);routeLine=null}refreshPoints()}};
 $('saveRoute').onclick=()=>{let n=$('routeName').value.trim();if(!n)return alert('Give this route a name.');routes[n]=points.map(p=>({...p}));refreshRouteSelect();$('savedRoutes').value=n;saveData();alert('Route saved on this device.')};
