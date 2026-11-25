@@ -28,7 +28,7 @@ input{min-width:0;flex:1}button{cursor:pointer;font-weight:600}button.primary{ba
 #status{font-size:.9rem;color:#475569;margin:4px 0 10px}
 .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.stat{padding:10px;background:#f8fafc;border-radius:10px}.stat strong{display:block;font-size:1.1rem}
 .historyitem{padding:9px 0;border-bottom:1px solid #e5e7eb;font-size:.9rem}
-.note{color:#64748b;font-size:.8rem;line-height:1.4}
+.note{color:#64748b;font-size:.8rem;line-height:1.4}.comparebox{margin-top:10px;padding:10px;background:#f1f5f9;border-radius:10px;font-size:.88rem}.comparegrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.comparecell{padding:8px;background:#fff;border-radius:8px}.faster{color:#15803d;font-weight:700}.slower{color:#b45309;font-weight:700}
 @media(min-width:760px){main{grid-template-columns:1fr 1fr}.map-panel{grid-column:1/-1}.route-panel{grid-column:1/-1}}
 </style>
 </head>
@@ -45,7 +45,7 @@ input{min-width:0;flex:1}button{cursor:pointer;font-weight:600}button.primary{ba
 <section class="panel route-panel"><h2>Stops in order</h2><div class="row"><button id="groupSelected" class="primary">Group selected small dots</button><button id="ungroupSelected">Remove from group</button></div><div id="stops"></div><p class="note">Tap locations to select them (selected locations turn blue). Select at least two small dots to group them into one timed area. Drag the ☰ handle to reorder locations.</p></section>
 <section class="panel">
 <h2>Timing run</h2><div id="timer">00:00:00</div><div id="status">No active run</div><div class="row" style="justify-content:space-between"><span id="progressText" class="note">No active route</span><strong id="progressPercent">0%</strong></div><div class="progress-wrap"><div id="progressBar" class="progress-bar"></div></div>
-<div class="row"><button id="startRun" class="primary">Start run</button><button id="checkpoint" disabled>Arrived at next big point</button><button id="finishRun" disabled class="warn">Finish run</button></div>
+<div class="row"><button id="startRun" class="primary">Start run</button><button id="pauseRun" disabled>Pause</button><button id="checkpoint" disabled>Arrived at next big point</button><button id="finishRun" disabled class="warn">Finish run</button></div><div id="runComparison" class="comparebox">Start a run to compare it with previous runs of this route.</div>
 <p id="timingHint" class="note">GPS can automatically detect arrival at normal checkpoints and entry into/exit from grouped areas. Keep location permission enabled and the page open. The button remains available as a manual fallback.</p>
 </section>
 <section class="panel"><h2>Stats</h2><div class="stats" id="stats"></div><div class="row" style="margin-top:9px"><button id="exportCsv">Export CSV</button><button id="exportBackup">Export backup (JSON)</button><button id="importBackup">Import backup</button><input id="importFile" type="file" accept=".json,application/json" hidden></div></section>
@@ -58,7 +58,27 @@ let points=[],runs=[],routes={},activeRun=null,clockInterval=null,routeLine=null
 const map=L.map('map').setView([52.2,5.3],7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
 function saveData(){localStorage.setItem('rct_points',JSON.stringify(points));localStorage.setItem('rct_runs',JSON.stringify(runs));localStorage.setItem('rct_routes',JSON.stringify(routes))}
-function loadData(){try{points=JSON.parse(localStorage.getItem('rct_points')||'[]');runs=JSON.parse(localStorage.getItem('rct_runs')||'[]');routes=JSON.parse(localStorage.getItem('rct_routes')||'{}')}catch{}}
+function normalizePoint(p){
+ if(typeof p==='string')return {name:p,locality:'',lat:0,lon:0,type:'checkpoint'};
+ if(!p||typeof p!=='object')return null;
+ const name=p.name??p.address??p.display_name??p.label??'Unknown location';
+ const lat=Number(p.lat??p.latitude??p.latlng?.lat??p.coordinates?.lat);
+ const lon=Number(p.lon??p.lng??p.longitude??p.long??p.latlng?.lng??p.coordinates?.lon??p.coordinates?.lng);
+ const rawType=p.type??p.kind??p.pointType??'checkpoint';
+ return {...p,name:String(name),lat:Number.isFinite(lat)?lat:0,lon:Number.isFinite(lon)?lon:0,type:rawType==='small'||rawType==='dot'||rawType==='intermediate'?'small':'checkpoint'};
+}
+function normalizeRoute(value){
+ const arr=Array.isArray(value)?value:(Array.isArray(value?.points)?value.points:(Array.isArray(value?.stops)?value.stops:[]));
+ return arr.map(normalizePoint).filter(Boolean);
+}
+function loadData(){
+ try{
+  points=JSON.parse(localStorage.getItem('rct_points')||'[]').map(normalizePoint).filter(Boolean);
+  runs=JSON.parse(localStorage.getItem('rct_runs')||'[]');
+  const stored=JSON.parse(localStorage.getItem('rct_routes')||'{}');
+  routes={};Object.entries(stored||{}).forEach(([name,value])=>{routes[name]=normalizeRoute(value)});
+ }catch(e){console.warn('Could not load saved tracker data',e);points=[];runs=[];routes={}}
+}
 function fmt(ms){let s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;return [h,m,sec].map(x=>String(x).padStart(2,'0')).join(':')}
 function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function refreshRouteSelect(){let sel=$('savedRoutes');sel.innerHTML='<option value="">Load saved route…</option>'+Object.keys(routes).map(n=>`<option>${safe(n)}</option>`).join('')}
@@ -127,8 +147,22 @@ async function geocode(q){let url='https://nominatim.openstreetmap.org/search?fo
 $('addPoint').onclick=async()=>{let q=$('address').value.trim();if(!q)return alert('Enter an address first.');$('addPoint').disabled=true;try{let result=await geocode(q);let a=result.address||{};let locality=a.village||a.hamlet||a.town||a.suburb||a.city_district||a.city||a.municipality||'';points.push({name:result.display_name,locality,lat:+result.lat,lon:+result.lon,type:$('pointType').value});$('address').value='';refreshPoints();map.setView([result.lat,result.lon],13)}catch(e){alert(e.message)}finally{$('addPoint').disabled=false}};
 $('routeMap').onclick=async()=>{let valid=points.filter(p=>p.lat&&p.lon);if(valid.length<2)return alert('Add at least two mapped points.');$('routeMap').disabled=true;try{let coords=valid.map(p=>`${p.lon},${p.lat}`).join(';');let r=await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);let d=await r.json();if(d.code!=='Ok')throw new Error(d.message||'Routing failed');if(routeLine)map.removeLayer(routeLine);routeLine=L.geoJSON(d.routes[0].geometry,{style:{color:'#2563eb',weight:5,opacity:.8}}).addTo(map);map.fitBounds(routeLine.getBounds(),{padding:[20,20]});alert(`Road route drawn. Estimated driving time: ${fmt(d.routes[0].duration*1000)}. Estimated distance: ${(d.routes[0].distance/1000).toFixed(1)} km.`)}catch(e){alert('Could not calculate route: '+e.message)}finally{$('routeMap').disabled=false}};
 $('clearPoints').onclick=()=>{if(confirm('Remove all points from the current route?')){points=[];if(routeLine){map.removeLayer(routeLine);routeLine=null}refreshPoints()}};
+$('routeName').addEventListener('input',renderComparison);$('savedRoutes').addEventListener('change',()=>{const n=$('savedRoutes').value;if(n)$('routeName').value=n;renderComparison()});
 $('saveRoute').onclick=()=>{let n=$('routeName').value.trim();if(!n)return alert('Give this route a name.');routes[n]=points.map(p=>({...p}));refreshRouteSelect();$('savedRoutes').value=n;saveData();alert('Route saved on this device.')};
-$('loadRoute').onclick=()=>{let n=$('savedRoutes').value;if(!n||!routes[n])return alert('Select a saved route.');$('routeName').value=n;points=routes[n].map(p=>({...p}));refreshPoints();if(points.length&&points[0].lat)map.setView([points[0].lat,points[0].lon],11)};
+$('loadRoute').onclick=()=>{
+ let n=$('savedRoutes').value;if(!n||!Object.prototype.hasOwnProperty.call(routes,n))return alert('Select a saved route.');
+ const loaded=normalizeRoute(routes[n]);
+ if(!loaded.length)return alert('This saved route contains no readable locations. It may use an older backup format that needs conversion.');
+ if(activeRun)return alert('Finish or stop the active run before loading another route.');
+ $('routeName').value=n;points=loaded.map(p=>({...p}));
+ if(routeLine){map.removeLayer(routeLine);routeLine=null}
+ $('address').value='';
+ refreshPoints();
+ const valid=points.filter(p=>p.lat&&p.lon);
+ if(valid.length){const bounds=L.latLngBounds(valid.map(p=>[p.lat,p.lon]));map.fitBounds(bounds,{padding:[24,24],maxZoom:13})}
+ saveData();renderComparison();
+ $('status').textContent=`Loaded route: ${n} (${points.length} locations)`;
+};
 $('deleteRoute').onclick=()=>{let n=$('savedRoutes').value;if(!n)return alert('Select a saved route first.');if(confirm(`Permanently delete saved route \"${n}\"? This will not delete run history.`)){delete routes[n];refreshRouteSelect();$('routeName').value='';saveData();alert('Saved route deleted. Run history was kept.')}};
 function checkpoints(){let out=[],used=new Set();points.forEach((p,i)=>{if(p.group){if(used.has(p.group))return;used.add(p.group);let members=points.map((x,j)=>({...x,index:j})).filter(x=>x.group===p.group);out.push({type:'area',name:p.group,first:members[0],last:members[members.length-1],members,index:i})}else if(p.type==='checkpoint')out.push({...p,type:'checkpoint',index:i})});return out}
 function nextCheckpointIndex(){if(!activeRun)return -1;return activeRun.nextCp}
@@ -151,11 +185,41 @@ function startGps(){if(!navigator.geolocation){$('status').textContent='GPS unav
   else if(activeRun.areaEnteredAt&&activeRun.areaLastSeen&&dLast>radius){completeNextSection(Date.now(),'gps')}
  }else if(distanceM(here,item)<=radius){completeNextSection(Date.now(),'gps')}
  },err=>{$('status').textContent='GPS permission/location unavailable. Use the manual arrival button. '+err.message},{enableHighAccuracy:true,maximumAge:2000,timeout:15000})}
-$('startRun').onclick=()=>{if(activeRun)return;let seq=checkpoints();if(seq.length<2)return alert('A run needs at least two big checkpoints/areas.');let first=seq[0];activeRun={routeName:$('routeName').value.trim()||'Unnamed route',started:Date.now(),lastSectionTime:Date.now(),nextCp:1,legs:[],areaTimes:[],areaEnteredAt:null,sequence:seq,startLabel:nextLabel(first)};$('startRun').disabled=true;$('checkpoint').disabled=false;$('finishRun').disabled=false;$('status').textContent=`Run started at ${nextLabel(first)} · GPS detection active`;$('checkpoint').textContent=`Complete: ${nextLabel(seq[1])}`;clockInterval=setInterval(()=>{$('timer').textContent=fmt(Date.now()-activeRun.started)},1000);updateProgress();startGps()};
-$('checkpoint').onclick=()=>{if(!activeRun)return;let item=activeRun.sequence[activeRun.nextCp];if(item?.type==='area'&&!activeRun.areaEnteredAt){if(!confirm(`Mark ${item.name} as completed without GPS detecting its entry?`))return}completeNextSection(Date.now(),'manual')};
+function elapsedRun(now=Date.now()){if(!activeRun)return 0;return Math.max(0,now-activeRun.started-activeRun.pausedTotal-(activeRun.pausedAt?now-activeRun.pausedAt:0))}
+function renderComparison(){
+ const box=$('runComparison');if(!box)return;
+ const routeName=activeRun?.routeName||$('routeName').value.trim();
+ if(!routeName){box.textContent='Choose or load a route to see comparisons.';return}
+ const previous=runs.filter(r=>r.routeName===routeName&&Number.isFinite(r.total));
+ if(!previous.length){box.innerHTML=`<b>${safe(routeName)}</b><div class="note">No previous completed runs of this route yet. Your first run will create the baseline.</div>`;return}
+ const avg=previous.reduce((sum,r)=>sum+r.total,0)/previous.length;
+ const current=activeRun?elapsedRun():null;
+ let html=`<b>Compared with ${previous.length} previous run${previous.length===1?'':'s'} of ${safe(routeName)}</b><div class="comparegrid" style="margin-top:7px"><div class="comparecell"><span class="note">${activeRun?'Current run':'Previous average'}</span><strong>${fmt(activeRun?current:avg)}</strong></div><div class="comparecell"><span class="note">${activeRun?'Average previous time':'Runs included'}</span><strong>${activeRun?fmt(avg):previous.length}</strong></div></div>`;
+ if(activeRun){const delta=current-avg;html+=`<div style="margin-top:7px" class="${delta<=0?'faster':'slower'}">${delta<=0?'Currently '+fmt(-delta)+' faster':'Currently '+fmt(delta)+' slower'} than your average</div>`}
+ if(activeRun&&activeRun.legs.length){
+  html+='<div style="margin-top:8px"><b>Completed sections vs average</b>';
+  activeRun.legs.forEach(leg=>{const samples=[];previous.forEach(r=>(r.legs||[]).forEach(x=>{if(x.from===leg.from&&x.to===leg.to)samples.push(x.duration)}));if(samples.length){const a=samples.reduce((x,y)=>x+y,0)/samples.length,d=leg.duration-a;html+=`<div class="historyleg"><strong>${safe(leg.from)} → ${safe(leg.to)}</strong><span class="historymeta">Current ${fmt(leg.duration)} · average ${fmt(a)} · <span class="${d<=0?'faster':'slower'}">${d<=0?fmt(-d)+' faster':fmt(d)+' slower'}</span></span></div>`}});html+='</div>'}
+ box.innerHTML=html;
+}
+$('startRun').onclick=()=>{if(activeRun)return;let seq=checkpoints();if(seq.length<2)return alert('A run needs at least two big checkpoints/areas.');let first=seq[0];activeRun={routeName:$('routeName').value.trim()||'Unnamed route',started:Date.now(),lastSectionTime:Date.now(),pausedTotal:0,pausedAt:null,nextCp:1,legs:[],areaTimes:[],areaEnteredAt:null,sequence:seq,startLabel:nextLabel(first)};$('startRun').disabled=true;$('pauseRun').disabled=false;$('pauseRun').textContent='Pause';$('checkpoint').disabled=false;$('finishRun').disabled=false;$('status').textContent=`Run started at ${nextLabel(first)} · GPS detection active`;$('checkpoint').textContent=`Complete: ${nextLabel(seq[1])}`;clockInterval=setInterval(()=>{$('timer').textContent=fmt(elapsedRun());renderComparison()},1000);updateProgress();renderComparison();startGps()};
+$('pauseRun').onclick=()=>{
+ if(!activeRun)return;
+ if(!activeRun.pausedAt){
+  activeRun.pausedAt=Date.now();if(gpsWatch!==null){navigator.geolocation.clearWatch(gpsWatch);gpsWatch=null}
+  $('pauseRun').textContent='Resume';$('checkpoint').disabled=true;$('status').textContent='Run paused · timer and GPS detection stopped';
+ }else{
+  const now=Date.now(),pauseDuration=now-activeRun.pausedAt;
+  activeRun.pausedTotal+=pauseDuration;activeRun.lastSectionTime+=pauseDuration;
+  if(activeRun.areaEnteredAt)activeRun.areaEnteredAt+=pauseDuration;
+  activeRun.pausedAt=null;$('pauseRun').textContent='Pause';$('checkpoint').disabled=false;
+  $('status').textContent='Run resumed · GPS detection active';startGps();
+ }
+ renderComparison();
+};
+$('checkpoint').onclick=()=>{if(!activeRun||activeRun.pausedAt)return;let item=activeRun.sequence[activeRun.nextCp];if(item?.type==='area'&&!activeRun.areaEnteredAt){if(!confirm(`Mark ${item.name} as completed without GPS detecting its entry?`))return}completeNextSection(Date.now(),'manual')};
 $('finishRun').onclick=()=>{if(!activeRun)return;let now=Date.now();let cp=checkpoints();if(activeRun.nextCp<cp.length){if(!confirm('You have not marked all checkpoints arrived. Finish run anyway?'))return}
-let run={id:Date.now(),routeName:activeRun.routeName,started:activeRun.started,ended:now,total:now-activeRun.started,legs:activeRun.legs,areaTimes:activeRun.areaTimes||[]};runs.unshift(run);activeRun=null;clearInterval(clockInterval);if(gpsWatch!==null){navigator.geolocation.clearWatch(gpsWatch);gpsWatch=null}$('timer').textContent='00:00:00';$('status').textContent='Run saved';$('startRun').disabled=false;$('checkpoint').disabled=true;$('finishRun').disabled=true;$('checkpoint').textContent='Arrived at next big point';$('progressText').textContent='No active route';$('progressPercent').textContent='0%';$('progressBar').style.width='0%';saveData();renderStats();renderHistory()};
-function renderStats(){let legMap={};runs.forEach(r=>r.legs.forEach(l=>{let key=l.from+' → '+l.to;(legMap[key]??=[]).push(l.duration)}));let avgTotal=runs.length?runs.reduce((a,r)=>a+r.total,0)/runs.length:0;let legCount=Object.keys(legMap).length;$('stats').innerHTML=`<div class="stat"><span class="note">Saved runs</span><strong>${runs.length}</strong></div><div class="stat"><span class="note">Average total</span><strong>${runs.length?fmt(avgTotal):'—'}</strong></div><div class="stat"><span class="note">Checkpoint legs</span><strong>${legCount}</strong></div><div class="stat"><span class="note">Leg averages</span><strong>${legCount?Object.values(legMap).reduce((a,v)=>a+v.length,0)+' samples':'—'}</strong></div>`}
+let run={id:Date.now(),routeName:activeRun.routeName,started:activeRun.started,ended:now,total:elapsedRun(now),legs:activeRun.legs,areaTimes:activeRun.areaTimes||[]};runs.unshift(run);activeRun=null;clearInterval(clockInterval);if(gpsWatch!==null){navigator.geolocation.clearWatch(gpsWatch);gpsWatch=null}$('timer').textContent='00:00:00';$('status').textContent='Run saved';$('startRun').disabled=false;$('pauseRun').disabled=true;$('pauseRun').textContent='Pause';$('checkpoint').disabled=true;$('finishRun').disabled=true;$('checkpoint').textContent='Arrived at next big point';$('progressText').textContent='No active route';$('progressPercent').textContent='0%';$('progressBar').style.width='0%';saveData();renderStats();renderHistory();renderComparison()};
+function renderStats(){let legMap={};runs.forEach(r=>r.legs.forEach(l=>{let key=l.from+' → '+l.to;(legMap[key]??=[]).push(l.duration)}));let avgTotal=runs.length?runs.reduce((a,r)=>a+r.total,0)/runs.length:0;let legCount=Object.keys(legMap).length;$('stats').innerHTML=`<div class="stat"><span class="note">Saved runs</span><strong>${runs.length}</strong></div><div class="stat"><span class="note">Average all routes</span><strong>${runs.length?fmt(avgTotal):'—'}</strong></div><div class="stat"><span class="note">Checkpoint legs</span><strong>${legCount}</strong></div><div class="stat"><span class="note">Leg averages</span><strong>${legCount?Object.values(legMap).reduce((a,v)=>a+v.length,0)+' samples':'—'}</strong></div>`}
 function deleteRun(id){let run=runs.find(r=>String(r.id)===String(id));if(!run)return;if(!confirm(`Delete this run from ${new Date(run.started).toLocaleString()}? This cannot be undone.`))return;runs=runs.filter(r=>String(r.id)!==String(id));saveData();renderStats();renderHistory()}
 function renderHistory(){$('history').innerHTML=runs.length?runs.map(r=>`<div class="historyitem"><div class="row" style="justify-content:space-between"><div><b>${safe(r.routeName)}</b> · ${new Date(r.started).toLocaleString()}</div><button class="small warn" onclick="deleteRun('${safe(r.id)}')">Delete run</button></div>Total: <b>${fmt(r.total)}</b> · ${r.legs.length} legs${r.legs.map(l=>`<div class="historyleg"><strong>${safe(l.from)} → ${safe(l.to)}</strong><span class="historymeta">${fmt(l.duration)}${l.kind==='area'?' · area section':''}</span></div>`).join('')}${(r.areaTimes||[]).map(a=>`<div class="historyleg"><strong>${safe(a.name)} area time (${a.dots} dots)</strong><span class="historymeta">${fmt(a.duration)}</span></div>`).join('')}</div>`).join(''):'<p class="note">No runs saved yet.</p>'}
 $('exportCsv').onclick=()=>{let rows=[['route','date','total_ms','total_time','from_checkpoint','to_checkpoint','leg_ms','leg_time']];runs.forEach(r=>{if(!r.legs.length)rows.push([r.routeName,new Date(r.started).toISOString(),r.total,fmt(r.total),'','','','']);r.legs.forEach(l=>rows.push([r.routeName,new Date(r.started).toISOString(),r.total,fmt(r.total),l.from,l.to,l.duration,fmt(l.duration)]))});download('route-tracker.csv',rows.map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\n'),'text/csv')};
@@ -164,7 +228,7 @@ $('importBackup').onclick=()=>$('importFile').click();
 $('importFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let d=JSON.parse(await f.text());if(confirm('Replace current saved data with imported backup?')){points=d.points||[];runs=d.runs||[];routes=d.routes||{};refreshPoints();refreshRouteSelect();renderHistory();saveData()}}catch{alert('Invalid backup file')}e.target.value=''};
 $('clearHistory').onclick=()=>{if(confirm('Delete all run history?')){runs=[];saveData();renderStats();renderHistory()}};
 function download(name,content,type){let blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-loadData();refreshPoints();refreshRouteSelect();renderHistory();renderStats();
+loadData();refreshPoints();refreshRouteSelect();renderHistory();renderStats();renderComparison();
 </script>
 </body>
 </html>
