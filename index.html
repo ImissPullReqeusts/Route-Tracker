@@ -17,12 +17,14 @@ input,select,button{font:inherit;border-radius:10px;border:1px solid #cbd5e1;pad
 input{min-width:0;flex:1}button{cursor:pointer;font-weight:600}button.primary{background:#1767d1;color:white;border-color:#1767d1}button.warn{background:#fff2e5;border-color:#fed7aa;color:#9a3412}button.small{padding:7px 9px;font-size:.85rem}
 #map{height:330px;border-radius:12px;z-index:1}
 #stops{display:grid;gap:7px;margin-top:10px}
+.groupbox{border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:9px;margin:7px 0}.groupbox .grouphead{font-weight:700;color:#1e40af;margin-bottom:5px}.groupbox .stop{background:#fff}.stop select{flex:0 0 auto}
+.progress-wrap{height:12px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin:8px 0}.progress-bar{height:100%;width:0;background:#16845b;transition:width .4s}.historyleg{padding:6px 0;border-bottom:1px solid #edf0f4}.historyleg strong{display:block}.historymeta{font-size:.8rem;color:#64748b}
 .stop{display:flex;align-items:center;gap:7px;border:1px solid #e2e8f0;border-radius:11px;padding:9px}
 .stop .num{width:25px;height:25px;display:grid;place-items:center;border-radius:50%;background:#e7eef9;font-size:.8rem;font-weight:700;flex-shrink:0}
 .stop .info{flex:1;min-width:0}.stop .name{font-weight:650;overflow-wrap:anywhere}.stop .sub{font-size:.78rem;color:#64748b}
 .badge{font-size:.72rem;border-radius:99px;padding:3px 7px;background:#dbeafe;color:#1d4ed8;white-space:nowrap}
 .badge.smallstop{background:#e5e7eb;color:#374151}
-#timer{font-size:2rem;font-weight:800;font-variant-numeric:tabular-nums}\n.progress-wrap{margin:10px 0 12px}.progress-meta{display:flex;justify-content:space-between;gap:8px;font-size:.85rem;margin-bottom:5px}.progress-track{height:12px;background:#e2e8f0;border-radius:99px;overflow:hidden}.progress-fill{height:100%;width:0;background:#16834a;transition:width .35s}.history-leg{padding:8px 0;border-bottom:1px solid #eef2f7}.history-leg .route-line{font-weight:650}.history-leg .time{color:#475569;font-size:.85rem}.history-stop{font-size:.82rem;color:#64748b;margin-top:3px}.gps-note{font-size:.8rem;color:#64748b;margin-top:8px}
+#timer{font-size:2rem;font-weight:800;font-variant-numeric:tabular-nums}
 #status{font-size:.9rem;color:#475569;margin:4px 0 10px}
 .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.stat{padding:10px;background:#f8fafc;border-radius:10px}.stat strong{display:block;font-size:1.1rem}
 .historyitem{padding:9px 0;border-bottom:1px solid #e5e7eb;font-size:.9rem}
@@ -41,13 +43,11 @@ input{min-width:0;flex:1}button{cursor:pointer;font-weight:600}button.primary{ba
 <p class="note">Add addresses in route order. Public geocoding/routing services have usage limits; please avoid bulk searches.</p>
 </section>
 <section class="panel map-panel"><h2>Map</h2><div id="map"></div><div class="row" style="margin-top:8px"><button id="routeMap">Draw route</button><button id="clearPoints" class="warn">Clear points</button></div><p class="note">Route line is calculated through all points in the order you listed. Map tiles and routing require internet.</p></section>
-<section class="panel route-panel"><h2>Stops in order</h2><div id="stops"></div><p class="note">Use ↑ / ↓ to reorder. Promote a small dot to a checkpoint, or downgrade a checkpoint to a small dot.</p></section>
+<section class="panel route-panel"><h2>Stops in order</h2><div class="row"><button id="groupSelected" class="primary">Group selected small dots</button><button id="ungroupSelected">Remove from group</button></div><div id="stops"></div><p class="note">Select at least two small dots to group them into one timed area. The group follows the order of its first dot; its last dot is the area exit. Use ↑ / ↓ to reorder.</p></section>
 <section class="panel">
-<h2>Timing run</h2><div id="timer">00:00:00</div><div id="status">No active run</div>
-<div class="progress-wrap"><div class="progress-meta"><span id="progressText">Checkpoint progress</span><strong id="progressPct">0%</strong></div><div class="progress-track"><div id="progressFill" class="progress-fill"></div></div></div>
-<div class="row"><button id="startRun" class="primary">Start GPS run</button><button id="checkpoint" disabled>Manual arrival</button><button id="finishRun" disabled class="warn">Finish run</button></div>
-<p id="gpsStatus" class="gps-note">GPS auto-arrival and stop-time tracking are used when location permission is available. Keep this page open for best results.</p>
-<p id="timingHint" class="note">Start at the first big point. GPS will detect arrival at later big points and record driving and stop times. Use Manual arrival if GPS misses a checkpoint.</p>
+<h2>Timing run</h2><div id="timer">00:00:00</div><div id="status">No active run</div><div class="row" style="justify-content:space-between"><span id="progressText" class="note">No active route</span><strong id="progressPercent">0%</strong></div><div class="progress-wrap"><div id="progressBar" class="progress-bar"></div></div>
+<div class="row"><button id="startRun" class="primary">Start run</button><button id="checkpoint" disabled>Arrived at next big point</button><button id="finishRun" disabled class="warn">Finish run</button></div>
+<p id="timingHint" class="note">GPS can automatically detect arrival at normal checkpoints and entry into/exit from grouped areas. Keep location permission enabled and the page open. The button remains available as a manual fallback.</p>
 </section>
 <section class="panel"><h2>Stats</h2><div class="stats" id="stats"></div><div class="row" style="margin-top:9px"><button id="exportCsv">Export CSV</button><button id="exportBackup">Export backup (JSON)</button><button id="importBackup">Import backup</button><input id="importFile" type="file" accept=".json,application/json" hidden></div></section>
 <section class="panel"><h2>Run history</h2><div id="history"></div><button id="clearHistory" class="warn small" style="margin-top:8px">Clear history</button></section>
@@ -55,7 +55,7 @@ input{min-width:0;flex:1}button{cursor:pointer;font-weight:600}button.primary{ba
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let points=[],runs=[],routes={},activeRun=null,clockInterval=null,routeLine=null,markers=[],geoWatch=null,wakeLock=null,insideCount=0,outsideCount=0;
+let points=[],runs=[],routes={},activeRun=null,clockInterval=null,routeLine=null,markers=[],gpsWatch=null;
 const map=L.map('map').setView([52.2,5.3],7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
 function saveData(){localStorage.setItem('rct_points',JSON.stringify(points));localStorage.setItem('rct_runs',JSON.stringify(runs));localStorage.setItem('rct_routes',JSON.stringify(routes))}
@@ -64,11 +64,21 @@ function fmt(ms){let s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Ma
 function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function refreshRouteSelect(){let sel=$('savedRoutes');sel.innerHTML='<option value="">Load saved route…</option>'+Object.keys(routes).map(n=>`<option>${safe(n)}</option>`).join('')}
 function refreshPoints(){
- $('stops').innerHTML=points.map((p,i)=>`<div class="stop"><span class="num">${i+1}</span><div class="info"><div class="name">${safe(p.name)}</div><div class="sub">${p.type==='checkpoint'?'Timing checkpoint':'Intermediate dot'}</div></div><span class="badge ${p.type==='small'?'smallstop':''}">${p.type==='checkpoint'?'BIG':'DOT'}</span><button class="small" onclick="movePoint(${i},-1)" title="Move up">↑</button><button class="small" onclick="movePoint(${i},1)" title="Move down">↓</button><button class="small" onclick="togglePoint(${i})" title="Toggle checkpoint/dot">⇄</button><button class="small warn" onclick="removePoint(${i})" title="Remove">×</button></div>`).join('');
+ const groups=[...new Set(points.map(p=>p.group).filter(Boolean))];
+ let html='',seen=new Set();
+ points.forEach((p,i)=>{
+  const row=`<div class="stop"><input type="checkbox" class="pointSelect" value="${i}" aria-label="Select ${safe(p.name)}"><span class="num">${i+1}</span><div class="info"><div class="name">${safe(shortName(p.name))}</div><div class="sub">${p.group?'Area: '+safe(p.group):(p.type==='checkpoint'?'Timing checkpoint':'Intermediate dot')}</div></div><span class="badge ${p.group?'':'smallstop'}">${p.group?'AREA':p.type==='checkpoint'?'BIG':'DOT'}</span><button class="small" onclick="movePoint(${i},-1)" title="Move up">↑</button><button class="small" onclick="movePoint(${i},1)" title="Move down">↓</button><button class="small" onclick="togglePoint(${i})" title="Toggle checkpoint/dot">⇄</button><button class="small warn" onclick="removePoint(${i})" title="Remove">×</button></div>`;
+  if(p.group){if(!seen.has(p.group)){seen.add(p.group);let members=points.map((x,j)=>x.group===p.group?j:-1).filter(j=>j>=0);html+=`<div class="groupbox"><div class="grouphead">▣ ${safe(p.group)} · ${members.length} dots</div>${members.map(j=>{let q=points[j];return `<div class="stop"><input type="checkbox" class="pointSelect" value="${j}" aria-label="Select ${safe(q.name)}"><span class="num">${j+1}</span><div class="info"><div class="name">${safe(shortName(q.name))}</div><div class="sub">${j===members[0]?'Area entry':j===members[members.length-1]?'Area exit':'Grouped dot'}</div></div><button class="small" onclick="movePoint(${j},-1)" title="Move up">↑</button><button class="small" onclick="movePoint(${j},1)" title="Move down">↓</button><button class="small warn" onclick="removePoint(${j})" title="Remove">×</button></div>`}).join('')}</div>`}}
+  else html+=row;
+ });
+ $('stops').innerHTML=html||'<p class="note">No stops added yet.</p>';
  redrawMarkers();saveData();renderStats();
 }
+function shortName(name){let parts=String(name||'').split(',').map(x=>x.trim()).filter(Boolean);return parts[0]||name}
+$('groupSelected').onclick=()=>{let ids=[...document.querySelectorAll('.pointSelect:checked')].map(x=>+x.value);if(ids.length<2)return alert('Select at least two small dots.');if(ids.some(i=>points[i].type!=='small'))return alert('Only small dots can be grouped.');let name=prompt('Name this area (for example, Koudekerke):');if(!name||!name.trim())return;let old=new Set(ids.map(i=>points[i].group).filter(Boolean));if(old.size&&!confirm('Some selected dots are already grouped. Replace their current group?'))return;ids.forEach(i=>points[i].group=name.trim());refreshPoints()};
+$('ungroupSelected').onclick=()=>{let ids=[...document.querySelectorAll('.pointSelect:checked')].map(x=>+x.value);if(!ids.length)return alert('Select dots to remove from their group.');ids.forEach(i=>delete points[i].group);refreshPoints()};
 window.movePoint=(i,d)=>{let j=i+d;if(j<0||j>=points.length)return;[points[i],points[j]]=[points[j],points[i]];refreshPoints()};
-window.togglePoint=i=>{points[i].type=points[i].type==='checkpoint'?'small':'checkpoint';refreshPoints()};
+window.togglePoint=i=>{if(points[i].group)delete points[i].group;points[i].type=points[i].type==='checkpoint'?'small':'checkpoint';refreshPoints()};
 window.removePoint=i=>{points.splice(i,1);refreshPoints()};
 function redrawMarkers(){markers.forEach(m=>map.removeLayer(m));markers=[];points.forEach((p,i)=>{if(!p.lat||!p.lon)return;let color=p.type==='checkpoint'?'#1565c0':'#64748b';let icon=L.divIcon({className:'',html:`<div style="width:26px;height:26px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 1px 5px #0005;color:white;text-align:center;line-height:20px;font-weight:bold">${i+1}</div>`,iconSize:[26,26],iconAnchor:[13,13]});let m=L.marker([p.lat,p.lon],{icon}).addTo(map).bindPopup(`${i+1}. ${safe(p.name)}<br>${p.type==='checkpoint'?'Timing checkpoint':'Small dot'}`);markers.push(m)})}
 async function geocode(q){let url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q='+encodeURIComponent(q);let r=await fetch(url);if(!r.ok)throw new Error('Address lookup failed');let d=await r.json();if(!d.length)throw new Error('Address not found. Try a more specific address.');return d[0]}
@@ -77,93 +87,34 @@ $('routeMap').onclick=async()=>{let valid=points.filter(p=>p.lat&&p.lon);if(vali
 $('clearPoints').onclick=()=>{if(confirm('Remove all points from the current route?')){points=[];if(routeLine){map.removeLayer(routeLine);routeLine=null}refreshPoints()}};
 $('saveRoute').onclick=()=>{let n=$('routeName').value.trim();if(!n)return alert('Give this route a name.');routes[n]=points.map(p=>({...p}));refreshRouteSelect();$('savedRoutes').value=n;saveData();alert('Route saved on this device.')};
 $('loadRoute').onclick=()=>{let n=$('savedRoutes').value;if(!n||!routes[n])return alert('Select a saved route.');$('routeName').value=n;points=routes[n].map(p=>({...p}));refreshPoints();if(points.length&&points[0].lat)map.setView([points[0].lat,points[0].lon],11)};
-$('deleteRoute').onclick=()=>{let n=$('savedRoutes').value;if(!n)return alert('Select a route to delete.');if(confirm(`Delete saved route "${n}"?`)){delete routes[n];refreshRouteSelect();saveData()}};
-function checkpoints(){return points.map((p,i)=>({...p,index:i})).filter(p=>p.type==='checkpoint')}
+$('deleteRoute').onclick=()=>{let n=$('savedRoutes').value;if(!n)return alert('Select a saved route first.');if(confirm(`Permanently delete saved route \"${n}\"? This will not delete run history.`)){delete routes[n];refreshRouteSelect();$('routeName').value='';saveData();alert('Saved route deleted. Run history was kept.')}};
+function checkpoints(){let out=[],used=new Set();points.forEach((p,i)=>{if(p.group){if(used.has(p.group))return;used.add(p.group);let members=points.map((x,j)=>({...x,index:j})).filter(x=>x.group===p.group);out.push({type:'area',name:p.group,first:members[0],last:members[members.length-1],members,index:i})}else if(p.type==='checkpoint')out.push({...p,type:'checkpoint',index:i})});return out}
 function nextCheckpointIndex(){if(!activeRun)return -1;return activeRun.nextCp}
-function checkpointProgress(){
- if(!activeRun){$('progressText').textContent='Checkpoint progress';$('progressPct').textContent='0%';$('progressFill').style.width='0%';return}
- const total=activeRun.cpList.length, reached=Math.min(activeRun.nextCp,total);
- const pct=total?Math.round(reached/total*100):0;
- $('progressText').textContent=`Checkpoint ${reached} of ${total}`;
- $('progressPct').textContent=`${pct}%`;
- $('progressFill').style.width=`${pct}%`;
+function updateProgress(){if(!activeRun)return;let total=activeRun.sequence.length,done=activeRun.nextCp;let pct=Math.round(done/total*100);$('progressText').textContent=`${done} of ${total} route sections completed`;$('progressPercent').textContent=pct+'%';$('progressBar').style.width=pct+'%'}
+function distanceM(a,b){const R=6371000,toRad=x=>x*Math.PI/180,dLat=toRad(b.lat-a.lat),dLon=toRad(b.lon-a.lon),x=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
+function nextLabel(item){return item.type==='area'?`Area: ${item.name}`:shortName(item.name)}
+function completeNextSection(now=Date.now(),source='manual'){
+ if(!activeRun)return;let idx=activeRun.nextCp,item=activeRun.sequence[idx];if(!item)return;
+ let prev=activeRun.sequence[idx-1];let duration=now-activeRun.lastSectionTime;
+ activeRun.legs.push({from:prev?nextLabel(prev):activeRun.startLabel,to:nextLabel(item),start:activeRun.lastSectionTime,end:now,duration,kind:item.type==='area'?'area':'checkpoint'});
+ if(item.type==='area'&&activeRun.areaEnteredAt){activeRun.areaTimes.push({name:item.name,start:activeRun.areaEnteredAt,end:now,duration:now-activeRun.areaEnteredAt,dots:item.members.length});activeRun.areaEnteredAt=null}
+ activeRun.lastSectionTime=now;activeRun.nextCp++;$('status').textContent=`Completed ${nextLabel(item)} · ${fmt(duration)}${source==='gps'?' · GPS':''}`;
+ if(activeRun.nextCp<activeRun.sequence.length){$('checkpoint').disabled=false;$('checkpoint').textContent=`Complete: ${nextLabel(activeRun.sequence[activeRun.nextCp])}`}else{$('checkpoint').disabled=true;$('status').textContent+=' · Final section reached'}updateProgress();
 }
-function shortStreet(full){
- const parts=String(full||'').split(',').map(x=>x.trim()).filter(Boolean);
- if(!parts.length)return 'Unknown street';
- if(/^\d+[a-zA-Z]?$/.test(parts[0]) && parts.length>1)return parts[1];
- return parts[0];
-}
-function cpPoint(idx){return checkpoints()[idx]}
-function distanceMeters(a,b){const R=6371000,rad=x=>x*Math.PI/180;let dLat=rad(b.lat-a.lat),dLon=rad(b.lon-a.lon);let q=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(q))}
-function updateRunStatus(msg){$('status').textContent=msg}
-function recordArrival(now,cp){
- if(!activeRun)return;
- const prev=cpPoint(activeRun.nextCp-1);
- const driving=Math.max(0,now-activeRun.legStart);
- activeRun.legs.push({from:prev.name,to:cp.name,start:activeRun.legStart,end:now,duration:driving});
- activeRun.nextCp++;
- activeRun.stopArrivedAt=now;activeRun.currentStopIndex=activeRun.nextCp-1;activeRun.departed=false;
- insideCount=outsideCount=0;
- updateRunStatus(`Arrived at ${shortStreet(cp.name)} · driving ${fmt(driving)} · stop timer running`);
- checkpointProgress();
- if(activeRun.nextCp>=activeRun.cpList.length){finishRun(true);return}
- $('checkpoint').textContent=`Manual arrival: ${shortStreet(cpPoint(activeRun.nextCp).name)}`;
-}
-function recordDeparture(now){
- if(!activeRun||activeRun.departed)return;
- const cp=cpPoint(activeRun.currentStopIndex);
- activeRun.stops.push({point:cp.name,arrived:activeRun.stopArrivedAt,departed:now,duration:Math.max(0,now-activeRun.stopArrivedAt)});
- activeRun.departed=true;activeRun.legStart=now;
- updateRunStatus(`Departed ${shortStreet(cp.name)} · stop ${fmt(now-activeRun.stopArrivedAt)} · driving to ${shortStreet(cpPoint(activeRun.nextCp).name)}`);
-}
-function onGps(position){
- if(!activeRun)return;
- const loc={lat:position.coords.latitude,lon:position.coords.longitude};
- const cp=cpPoint(activeRun.nextCp);
- if(!cp||!Number.isFinite(cp.lat)||!Number.isFinite(cp.lon))return;
- const d=distanceMeters(loc,cp),radius=activeRun.radius||90;
- if(!activeRun.departed){
-   const stopPoint=cpPoint(activeRun.currentStopIndex);
-   const stopDistance=stopPoint?distanceMeters(loc,stopPoint):Infinity;
-   if(stopDistance>radius*1.55){outsideCount++;insideCount=0;if(outsideCount>=2)recordDeparture(Date.now())}
-   else outsideCount=0;
- }else{
-   if(d<=radius){insideCount++;outsideCount=0;if(insideCount>=2)recordArrival(Date.now(),cp)}
-   else insideCount=0;
- }
- $('gpsStatus').textContent=`GPS active · ${Math.round(d)} m from next checkpoint (arrival radius ${radius} m)`;
-}
-function startGps(){
- if(!navigator.geolocation){$('gpsStatus').textContent='GPS not supported in this browser; use manual arrival.';return}
- geoWatch=navigator.geolocation.watchPosition(onGps,e=>{$('gpsStatus').textContent=`GPS issue: ${e.message}. Use manual arrival or check location permission.`},{enableHighAccuracy:true,maximumAge:3000,timeout:15000});
- try{if('wakeLock' in navigator)navigator.wakeLock.request('screen').then(w=>wakeLock=w).catch(()=>{})}catch{}
-}
-function stopGps(){if(geoWatch!==null){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null}}
-$('startRun').onclick=()=>{
- if(activeRun)return;
- let cp=checkpoints();if(cp.length<2)return alert('A run needs at least two big points.');
- const now=Date.now();
- activeRun={routeName:$('routeName').value.trim()||'Unnamed route',started:now,nextCp:1,legs:[],stops:[],cpList:cp.map(p=>p.name),startPoint:cp[0].name,legStart:now,departed:true,currentStopIndex:0,stopArrivedAt:null,radius:90};
- $('startRun').disabled=true;$('checkpoint').disabled=false;$('finishRun').disabled=false;
- updateRunStatus(`Run started · ${shortStreet(cp[0].name)} → ${shortStreet(cp[1].name)}`);
- checkpointProgress();
- clockInterval=setInterval(()=>{$('timer').textContent=fmt(Date.now()-activeRun.started)},1000);
- $('checkpoint').textContent=`Manual arrival: ${shortStreet(cp[1].name)}`;
- startGps();
-};
-$('checkpoint').onclick=()=>{if(!activeRun)return;let cp=cpPoint(activeRun.nextCp);if(!cp)return alert('All checkpoints reached.');recordArrival(Date.now(),cp)};
-function finishRun(auto=false){
- if(!activeRun)return;
- let now=Date.now(),cp=checkpoints();
- if(!auto&&activeRun.nextCp<cp.length){if(!confirm('You have not marked all checkpoints arrived. Finish run anyway?'))return}
- if(activeRun.stopArrivedAt&&!activeRun.departed){activeRun.stops.push({point:cp[activeRun.currentStopIndex]?.name||'',arrived:activeRun.stopArrivedAt,departed:now,duration:Math.max(0,now-activeRun.stopArrivedAt),final:true})}
- let run={id:Date.now(),routeName:activeRun.routeName,started:activeRun.started,ended:now,total:now-activeRun.started,legs:activeRun.legs,stops:activeRun.stops,cpList:activeRun.cpList};
- runs.unshift(run);activeRun=null;clearInterval(clockInterval);stopGps();$('timer').textContent='00:00:00';updateRunStatus(auto?'Run completed automatically at final checkpoint':'Run saved');$('startRun').disabled=false;$('checkpoint').disabled=true;$('finishRun').disabled=true;$('checkpoint').textContent='Manual arrival';checkpointProgress();saveData();renderStats();renderHistory();
-}
-$('finishRun').onclick=()=>finishRun(false);
+function startGps(){if(!navigator.geolocation){$('status').textContent='GPS unavailable; use manual buttons.';return}if(gpsWatch!==null)navigator.geolocation.clearWatch(gpsWatch);gpsWatch=navigator.geolocation.watchPosition(pos=>{if(!activeRun)return;let item=activeRun.sequence[activeRun.nextCp];if(!item)return;let here={lat:pos.coords.latitude,lon:pos.coords.longitude},radius=75;
+ if(item.type==='area'){
+  let first=item.first,last=item.last;let dFirst=distanceM(here,first),dLast=distanceM(here,last);
+  if(!activeRun.areaEnteredAt&&dFirst<=radius){activeRun.areaEnteredAt=Date.now();activeRun.areaLastSeen=false;$('status').textContent=`Entered ${item.name} · area timer started`;}
+  else if(activeRun.areaEnteredAt&&dLast<=radius){activeRun.areaLastSeen=true;}
+  else if(activeRun.areaEnteredAt&&activeRun.areaLastSeen&&dLast>radius){completeNextSection(Date.now(),'gps')}
+ }else if(distanceM(here,item)<=radius){completeNextSection(Date.now(),'gps')}
+ },err=>{$('status').textContent='GPS permission/location unavailable. Use the manual arrival button. '+err.message},{enableHighAccuracy:true,maximumAge:2000,timeout:15000})}
+$('startRun').onclick=()=>{if(activeRun)return;let seq=checkpoints();if(seq.length<2)return alert('A run needs at least two big checkpoints/areas.');let first=seq[0];activeRun={routeName:$('routeName').value.trim()||'Unnamed route',started:Date.now(),lastSectionTime:Date.now(),nextCp:1,legs:[],areaTimes:[],areaEnteredAt:null,sequence:seq,startLabel:nextLabel(first)};$('startRun').disabled=true;$('checkpoint').disabled=false;$('finishRun').disabled=false;$('status').textContent=`Run started at ${nextLabel(first)} · GPS detection active`;$('checkpoint').textContent=`Complete: ${nextLabel(seq[1])}`;clockInterval=setInterval(()=>{$('timer').textContent=fmt(Date.now()-activeRun.started)},1000);updateProgress();startGps()};
+$('checkpoint').onclick=()=>{if(!activeRun)return;let item=activeRun.sequence[activeRun.nextCp];if(item?.type==='area'&&!activeRun.areaEnteredAt){if(!confirm(`Mark ${item.name} as completed without GPS detecting its entry?`))return}completeNextSection(Date.now(),'manual')};
+$('finishRun').onclick=()=>{if(!activeRun)return;let now=Date.now();let cp=checkpoints();if(activeRun.nextCp<cp.length){if(!confirm('You have not marked all checkpoints arrived. Finish run anyway?'))return}
+let run={id:Date.now(),routeName:activeRun.routeName,started:activeRun.started,ended:now,total:now-activeRun.started,legs:activeRun.legs,areaTimes:activeRun.areaTimes||[]};runs.unshift(run);activeRun=null;clearInterval(clockInterval);if(gpsWatch!==null){navigator.geolocation.clearWatch(gpsWatch);gpsWatch=null}$('timer').textContent='00:00:00';$('status').textContent='Run saved';$('startRun').disabled=false;$('checkpoint').disabled=true;$('finishRun').disabled=true;$('checkpoint').textContent='Arrived at next big point';$('progressText').textContent='No active route';$('progressPercent').textContent='0%';$('progressBar').style.width='0%';saveData();renderStats();renderHistory()};
 function renderStats(){let legMap={};runs.forEach(r=>r.legs.forEach(l=>{let key=l.from+' → '+l.to;(legMap[key]??=[]).push(l.duration)}));let avgTotal=runs.length?runs.reduce((a,r)=>a+r.total,0)/runs.length:0;let legCount=Object.keys(legMap).length;$('stats').innerHTML=`<div class="stat"><span class="note">Saved runs</span><strong>${runs.length}</strong></div><div class="stat"><span class="note">Average total</span><strong>${runs.length?fmt(avgTotal):'—'}</strong></div><div class="stat"><span class="note">Checkpoint legs</span><strong>${legCount}</strong></div><div class="stat"><span class="note">Leg averages</span><strong>${legCount?Object.values(legMap).reduce((a,v)=>a+v.length,0)+' samples':'—'}</strong></div>`}
-function renderHistory(){$('history').innerHTML=runs.length?runs.map(r=>`<div class="historyitem"><b>${safe(r.routeName)}</b> · ${new Date(r.started).toLocaleString()}<br>Total: <b>${fmt(r.total)}</b> · ${r.legs.length} legs<div>${r.legs.map(l=>{const stop=r.stops?.find(st=>st.point===l.to);return `<div class="history-leg"><div class="route-line">${safe(shortStreet(l.from))} → ${safe(shortStreet(l.to))}</div><div class="time">Driving: ${fmt(l.duration)}</div><div class="history-stop">🛑 Stop point: ${safe(shortStreet(l.to))}${stop?` · Stopped ${fmt(stop.duration)}`:''}</div></div>`}).join('')}${(r.stops||[]).filter(st=>st.final).map(st=>`<div class="history-stop">🛑 Final stop: ${safe(shortStreet(st.point))} · ${fmt(st.duration)}</div>`).join('')}</div></div>`).join(''):'<p class="note">No runs saved yet.</p>'}
+function renderHistory(){$('history').innerHTML=runs.length?runs.map(r=>`<div class="historyitem"><b>${safe(r.routeName)}</b> · ${new Date(r.started).toLocaleString()}<br>Total: <b>${fmt(r.total)}</b> · ${r.legs.length} legs${r.legs.map(l=>`<div class="historyleg"><strong>${safe(shortName(l.from))} → ${safe(shortName(l.to))}</strong><span class="historymeta">${fmt(l.duration)}${l.kind==='area'?' · area section':''}</span></div>`).join('')}${(r.areaTimes||[]).map(a=>`<div class="historyleg"><strong>${safe(a.name)} area time (${a.dots} dots)</strong><span class="historymeta">${fmt(a.duration)}</span></div>`).join('')}</div>`).join(''):'<p class="note">No runs saved yet.</p>'}
 $('exportCsv').onclick=()=>{let rows=[['route','date','total_ms','total_time','from_checkpoint','to_checkpoint','leg_ms','leg_time']];runs.forEach(r=>{if(!r.legs.length)rows.push([r.routeName,new Date(r.started).toISOString(),r.total,fmt(r.total),'','','','']);r.legs.forEach(l=>rows.push([r.routeName,new Date(r.started).toISOString(),r.total,fmt(r.total),l.from,l.to,l.duration,fmt(l.duration)]))});download('route-tracker.csv',rows.map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\n'),'text/csv')};
 $('exportBackup').onclick=()=>download('route-tracker-backup.json',JSON.stringify({points,runs,routes},null,2),'application/json');
 $('importBackup').onclick=()=>$('importFile').click();
