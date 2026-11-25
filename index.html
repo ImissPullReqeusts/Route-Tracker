@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -63,7 +64,7 @@ function normalizePoint(p){
  if(!p||typeof p!=='object')return null;
  const name=p.name??p.address??p.display_name??p.label??'Unknown location';
  const lat=Number(p.lat??p.latitude??p.latlng?.lat??p.coordinates?.lat);
- const lon=Number(p.lon??p.lng??p.longitude??p.long??p.latlng?.lng??p.coordinates?.lon??p.coordinates?.lng);
+ const lon=Number(p.lon??p.lng??p.longitude??p.long??p.latlng?.lng??p.coordinates?.lon);
  const rawType=p.type??p.kind??p.pointType??'checkpoint';
  return {...p,name:String(name),lat:Number.isFinite(lat)?lat:0,lon:Number.isFinite(lon)?lon:0,type:rawType==='small'||rawType==='dot'||rawType==='intermediate'?'small':'checkpoint'};
 }
@@ -115,8 +116,6 @@ function shortName(name, locality=''){
  else {street=parts[0];let m=street.match(/^(.*?)[ ,]+(\d+[a-zA-Z]?(?:[-/]\d+[a-zA-Z]?)?)$/);if(m){street=m[1].trim();number=m[2]}}
  let city=locality||'';
  if(!city){
-  // Nominatim display names commonly list the village/town immediately after the street.
-  // Prefer that settlement instead of the municipality (e.g. Meliskerke, not Veere).
   const candidates=parts.slice(street===parts[0]?1:2);
   const excluded=/^(Nederland|Netherlands|Zeeland|Drenthe|Flevoland|Friesland|Gelderland|Groningen|Limburg|Noord-Brabant|Noord-Holland|Overijssel|Utrecht|Zuid-Holland)$/i;
   city=candidates.find(x=>!/^\d{4}\s?[A-Z]{2}$/i.test(x)&&!excluded.test(x)&&!/gemeente|municipality/i.test(x))||'';
@@ -127,21 +126,60 @@ $('groupSelected').onclick=()=>{let ids=[...selectedPoints];if(ids.length<2)retu
 $('ungroupSelected').onclick=()=>{let ids=[...selectedPoints];if(!ids.length)return alert('Select dots to remove from their group.');ids.forEach(i=>delete points[i].group);refreshPoints()};
 window.togglePoint=i=>{if(points[i].group)delete points[i].group;points[i].type=points[i].type==='checkpoint'?'small':'checkpoint';refreshPoints()};
 window.removePoint=i=>{points.splice(i,1);refreshPoints()};
-window.renamePoint=i=>{let p=points[i];if(!p)return;let oldLabel=pointShort(p),next=prompt('Enter your preferred name for this location:',p.customName||oldLabel);if(next===null)return;next=next.trim();if(!next)return alert('Name cannot be empty.');p.customName=next;for(const route of Object.values(routes)){for(const q of route){if(q.name===p.name&&q.lat===p.lat&&q.lon===p.lon)q.customName=next}}for(const run of runs){for(const leg of run.legs||[]){if(leg.from===oldLabel)leg.from=next;if(leg.to===oldLabel)leg.to=next}}saveData();refreshPoints();renderHistory();renderStats()};
+
+/* Route-specific location renaming: saved routes and completed runs are untouched. */
+window.renamePoint=i=>{
+ let p=points[i];if(!p)return;
+ let next=prompt('Enter your preferred name for this location:',p.customName||pointShort(p));
+ if(next===null)return;
+ next=next.trim();
+ if(!next)return alert('Name cannot be empty.');
+ p.customName=next;
+ saveData();
+ refreshPoints();
+ renderHistory();
+ renderStats();
+};
+
+/* Route-specific address editing: only the currently loaded route is changed. */
 window.editPointAddress=async i=>{
  let p=points[i];if(!p)return;
- let query=prompt('Enter the new address or place for this location:',p.name||'');if(query===null)return;query=query.trim();if(!query)return alert('Address cannot be empty.');
+ let query=prompt('Enter the new address or place for this location:',p.name||'');
+ if(query===null)return;
+ query=query.trim();
+ if(!query)return alert('Address cannot be empty.');
  if(!confirm('Look up this address and move the location on the map?'))return;
  try{
-  let result=await geocode(query),a=result.address||{},oldLabel=pointShort(p),oldName=p.name,oldLat=p.lat,oldLon=p.lon;
-  p.name=result.display_name;p.locality=a.village||a.hamlet||a.town||a.suburb||a.city_district||a.city||a.municipality||'';p.lat=+result.lat;p.lon=+result.lon;
-  const newLabel=pointShort(p);
-  for(const route of Object.values(routes))for(const q of route){if(q.name===oldName&&q.lat===oldLat&&q.lon===oldLon){q.name=p.name;q.locality=p.locality;q.lat=p.lat;q.lon=p.lon;if(p.customName)q.customName=p.customName;}}
-  for(const run of runs)for(const leg of run.legs||[]){if(leg.from===oldLabel)leg.from=newLabel;if(leg.to===oldLabel)leg.to=newLabel;}
-  saveData();refreshPoints();renderHistory();renderStats();map.setView([p.lat,p.lon],14);
- }catch(e){alert('Could not update address: '+e.message)}
+  let result=await geocode(query),a=result.address||{};
+  p.name=result.display_name;
+  p.locality=a.village||a.hamlet||a.town||a.suburb||a.city_district||a.city||a.municipality||'';
+  p.lat=+result.lat;
+  p.lon=+result.lon;
+  saveData();
+  refreshPoints();
+  renderHistory();
+  renderStats();
+  map.setView([p.lat,p.lon],14);
+ }catch(e){
+  alert('Could not update address: '+e.message);
+ }
 };
-window.renameGroup=i=>{let oldName=points[i]?.group;if(!oldName)return;let next=prompt('Enter your preferred area name:',oldName);if(next===null)return;next=next.trim();if(!next)return alert('Name cannot be empty.');points.forEach(p=>{if(p.group===oldName)p.group=next});for(const route of Object.values(routes)){route.forEach(p=>{if(p.group===oldName)p.group=next})}for(const run of runs){for(const leg of run.legs||[]){if(leg.from===`Area: ${oldName}`)leg.from=`Area: ${next}`;if(leg.to===`Area: ${oldName}`)leg.to=`Area: ${next}`}for(const a of run.areaTimes||[]){if(a.name===oldName)a.name=next}}saveData();refreshPoints();renderHistory();renderStats()};
+
+/* Route-specific area renaming: historical runs remain unchanged. */
+window.renameGroup=i=>{
+ let oldName=points[i]?.group;
+ if(!oldName)return;
+ let next=prompt('Enter your preferred area name:',oldName);
+ if(next===null)return;
+ next=next.trim();
+ if(!next)return alert('Name cannot be empty.');
+ points.forEach(p=>{if(p.group===oldName)p.group=next});
+ saveData();
+ refreshPoints();
+ renderHistory();
+ renderStats();
+};
+
 function redrawMarkers(){markers.forEach(m=>map.removeLayer(m));markers=[];points.forEach((p,i)=>{if(!p.lat||!p.lon)return;let color=p.type==='checkpoint'?'#1565c0':'#64748b';let icon=L.divIcon({className:'',html:`<div style="width:26px;height:26px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 1px 5px #0005;color:white;text-align:center;line-height:20px;font-weight:bold">${i+1}</div>`,iconSize:[26,26],iconAnchor:[13,13]});let m=L.marker([p.lat,p.lon],{icon}).addTo(map).bindPopup(`${i+1}. ${safe(pointShort(p))}<br>${p.type==='checkpoint'?'Timing checkpoint':'Small dot'}`);markers.push(m)})}
 async function geocode(q){let url='https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&q='+encodeURIComponent(q);let r=await fetch(url);if(!r.ok)throw new Error('Address lookup failed');let d=await r.json();if(!d.length)throw new Error('Address not found. Try a more specific address.');return d[0]}
 $('addPoint').onclick=async()=>{let q=$('address').value.trim();if(!q)return alert('Enter an address first.');$('addPoint').disabled=true;try{let result=await geocode(q);let a=result.address||{};let locality=a.village||a.hamlet||a.town||a.suburb||a.city_district||a.city||a.municipality||'';points.push({name:result.display_name,locality,lat:+result.lat,lon:+result.lon,type:$('pointType').value});$('address').value='';refreshPoints();map.setView([result.lat,result.lon],13)}catch(e){alert(e.message)}finally{$('addPoint').disabled=false}};
