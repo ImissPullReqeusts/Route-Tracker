@@ -74,7 +74,7 @@ function refreshPoints(){
  $('stops').innerHTML=html||'<p class="note">No stops added yet.</p>';
  redrawMarkers();saveData();renderStats();
 }
-function shortName(name){let parts=String(name||'').split(',').map(x=>x.trim()).filter(Boolean);return parts[0]||name}
+function shortName(name){let parts=String(name||'').split(',').map(x=>x.trim()).filter(Boolean);if(!parts.length)return String(name||'');const isHouseNumber=s=>/^\d+[a-zA-Z]?(?:[-/]\d+[a-zA-Z]?)?$/.test(s);if(parts.length>1&&isHouseNumber(parts[0]))return parts[1];return parts[0]}
 $('groupSelected').onclick=()=>{let ids=[...document.querySelectorAll('.pointSelect:checked')].map(x=>+x.value);if(ids.length<2)return alert('Select at least two small dots.');if(ids.some(i=>points[i].type!=='small'))return alert('Only small dots can be grouped.');let name=prompt('Name this area (for example, Koudekerke):');if(!name||!name.trim())return;let old=new Set(ids.map(i=>points[i].group).filter(Boolean));if(old.size&&!confirm('Some selected dots are already grouped. Replace their current group?'))return;ids.forEach(i=>points[i].group=name.trim());refreshPoints()};
 $('ungroupSelected').onclick=()=>{let ids=[...document.querySelectorAll('.pointSelect:checked')].map(x=>+x.value);if(!ids.length)return alert('Select dots to remove from their group.');ids.forEach(i=>delete points[i].group);refreshPoints()};
 window.movePoint=(i,d)=>{let j=i+d;if(j<0||j>=points.length)return;[points[i],points[j]]=[points[j],points[i]];refreshPoints()};
