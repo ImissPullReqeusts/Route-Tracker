@@ -17,7 +17,7 @@ input,select,button{font:inherit;border-radius:10px;border:1px solid #cbd5e1;pad
 input{min-width:0;flex:1}button{cursor:pointer;font-weight:600}button.primary{background:#1767d1;color:white;border-color:#1767d1}button.warn{background:#fff2e5;border-color:#fed7aa;color:#9a3412}button.small{padding:7px 9px;font-size:.85rem}
 #map{height:330px;border-radius:12px;z-index:1}
 #stops{display:grid;gap:7px;margin-top:10px}
-.groupbox{border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:9px;margin:7px 0}.groupbox .grouphead{font-weight:700;color:#1e40af;margin-bottom:5px}.groupbox .stop{background:#fff}.stop select{flex:0 0 auto}
+.groupbox{border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:9px;margin:7px 0}.groupbox .grouphead{font-weight:700;color:#1e40af;margin-bottom:5px}.groupbox .stop{background:#fff}.stop select{flex:0 0 auto}.stop{cursor:grab;transition:background .12s,border-color .12s}.stop.selected{background:#dbeafe;border-color:#3b82f6;box-shadow:inset 4px 0 #2563eb}.stop.dragging{opacity:.4}.stop.drag-over{outline:2px dashed #2563eb;outline-offset:1px}.drag-handle{font-size:1.1rem;color:#64748b;cursor:grab;user-select:none;padding:0 3px}
 .progress-wrap{height:12px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin:8px 0}.progress-bar{height:100%;width:0;background:#16845b;transition:width .4s}.historyleg{padding:6px 0;border-bottom:1px solid #edf0f4}.historyleg strong{display:block}.historymeta{font-size:.8rem;color:#64748b}
 .stop{display:flex;align-items:center;gap:7px;border:1px solid #e2e8f0;border-radius:11px;padding:9px}
 .stop .num{width:25px;height:25px;display:grid;place-items:center;border-radius:50%;background:#e7eef9;font-size:.8rem;font-weight:700;flex-shrink:0}
@@ -42,7 +42,7 @@ input{min-width:0;flex:1}button{cursor:pointer;font-weight:600}button.primary{ba
 <p class="note">Add addresses in route order. Public geocoding/routing services have usage limits; please avoid bulk searches.</p>
 </section>
 <section class="panel map-panel"><h2>Map</h2><div id="map"></div><div class="row" style="margin-top:8px"><button id="routeMap">Draw route</button><button id="clearPoints" class="warn">Clear points</button></div><p class="note">Route line is calculated through all points in the order you listed. Map tiles and routing require internet.</p></section>
-<section class="panel route-panel"><h2>Stops in order</h2><div class="row"><button id="groupSelected" class="primary">Group selected small dots</button><button id="ungroupSelected">Remove from group</button></div><div id="stops"></div><p class="note">Select at least two small dots to group them into one timed area. The group follows the order of its first dot; its last dot is the area exit. Use ↑ / ↓ to reorder.</p></section>
+<section class="panel route-panel"><h2>Stops in order</h2><div class="row"><button id="groupSelected" class="primary">Group selected small dots</button><button id="ungroupSelected">Remove from group</button></div><div id="stops"></div><p class="note">Tap locations to select them (selected locations turn blue). Select at least two small dots to group them into one timed area. Drag the ☰ handle to reorder locations.</p></section>
 <section class="panel">
 <h2>Timing run</h2><div id="timer">00:00:00</div><div id="status">No active run</div><div class="row" style="justify-content:space-between"><span id="progressText" class="note">No active route</span><strong id="progressPercent">0%</strong></div><div class="progress-wrap"><div id="progressBar" class="progress-bar"></div></div>
 <div class="row"><button id="startRun" class="primary">Start run</button><button id="checkpoint" disabled>Arrived at next big point</button><button id="finishRun" disabled class="warn">Finish run</button></div>
@@ -54,7 +54,7 @@ input{min-width:0;flex:1}button{cursor:pointer;font-weight:600}button.primary{ba
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let points=[],runs=[],routes={},activeRun=null,clockInterval=null,routeLine=null,markers=[],gpsWatch=null;
+let points=[],runs=[],routes={},activeRun=null,clockInterval=null,routeLine=null,markers=[],gpsWatch=null,selectedPoints=new Set();
 const map=L.map('map').setView([52.2,5.3],7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
 function saveData(){localStorage.setItem('rct_points',JSON.stringify(points));localStorage.setItem('rct_runs',JSON.stringify(runs));localStorage.setItem('rct_routes',JSON.stringify(routes))}
@@ -63,15 +63,27 @@ function fmt(ms){let s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Ma
 function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function refreshRouteSelect(){let sel=$('savedRoutes');sel.innerHTML='<option value="">Load saved route…</option>'+Object.keys(routes).map(n=>`<option>${safe(n)}</option>`).join('')}
 function refreshPoints(){
+ selectedPoints.clear();
  const groups=[...new Set(points.map(p=>p.group).filter(Boolean))];
  let html='',seen=new Set();
  points.forEach((p,i)=>{
-  const row=`<div class="stop"><input type="checkbox" class="pointSelect" value="${i}" aria-label="Select ${safe(p.name)}"><span class="num">${i+1}</span><div class="info"><div class="name">${safe(pointShort(p))}</div><div class="sub">${p.group?'Area: '+safe(p.group):(p.type==='checkpoint'?'Timing checkpoint':'Intermediate dot')}</div></div><span class="badge ${p.group?'':'smallstop'}">${p.group?'AREA':p.type==='checkpoint'?'BIG':'DOT'}</span><button class="small" onclick="movePoint(${i},-1)" title="Move up">↑</button><button class="small" onclick="movePoint(${i},1)" title="Move down">↓</button><button class="small" onclick="renamePoint(${i})" title="Rename location">Rename</button><button class="small" onclick="togglePoint(${i})" title="Toggle checkpoint/dot">⇄</button><button class="small warn" onclick="removePoint(${i})" title="Remove">×</button></div>`;
-  if(p.group){if(!seen.has(p.group)){seen.add(p.group);let members=points.map((x,j)=>x.group===p.group?j:-1).filter(j=>j>=0);html+=`<div class="groupbox"><div class="grouphead">▣ ${safe(p.group)} · ${members.length} dots <button class="small" onclick="renameGroup(${i})">Rename area</button></div>${members.map(j=>{let q=points[j];return `<div class="stop"><input type="checkbox" class="pointSelect" value="${j}" aria-label="Select ${safe(q.name)}"><span class="num">${j+1}</span><div class="info"><div class="name">${safe(pointShort(q))}</div><div class="sub">${j===members[0]?'Area entry':j===members[members.length-1]?'Area exit':'Grouped dot'}</div></div><button class="small" onclick="movePoint(${j},-1)" title="Move up">↑</button><button class="small" onclick="movePoint(${j},1)" title="Move down">↓</button><button class="small" onclick="renamePoint(${j})" title="Rename location">Rename</button><button class="small warn" onclick="removePoint(${j})" title="Remove">×</button></div>`}).join('')}</div>`}}
+  const row=`<div class="stop" data-index="${i}" draggable="true" onclick="toggleSelected(${i})"><span class="drag-handle" title="Drag to reorder">☰</span><span class="num">${i+1}</span><div class="info"><div class="name">${safe(pointShort(p))}</div><div class="sub">${p.group?'Area: '+safe(p.group):(p.type==='checkpoint'?'Timing checkpoint':'Intermediate dot')}</div></div><span class="badge ${p.group?'':'smallstop'}">${p.group?'AREA':p.type==='checkpoint'?'BIG':'DOT'}</span><button class="small" onclick="event.stopPropagation();renamePoint(${i})" title="Rename location">Rename</button><button class="small" onclick="event.stopPropagation();editPointAddress(${i})" title="Change address and map position">Address</button><button class="small" onclick="event.stopPropagation();togglePoint(${i})" title="Toggle checkpoint/dot">⇄</button><button class="small warn" onclick="event.stopPropagation();removePoint(${i})" title="Remove">×</button></div>`;
+  if(p.group){if(!seen.has(p.group)){seen.add(p.group);let members=points.map((x,j)=>x.group===p.group?j:-1).filter(j=>j>=0);html+=`<div class="groupbox"><div class="grouphead">▣ ${safe(p.group)} · ${members.length} dots <button class="small" onclick="renameGroup(${i})">Rename area</button></div>${members.map(j=>{let q=points[j];return `<div class="stop" data-index="${j}" draggable="true" onclick="toggleSelected(${j})"><span class="drag-handle" title="Drag to reorder">☰</span><span class="num">${j+1}</span><div class="info"><div class="name">${safe(pointShort(q))}</div><div class="sub">${j===members[0]?'Area entry':j===members[members.length-1]?'Area exit':'Grouped dot'}</div></div><button class="small" onclick="event.stopPropagation();renamePoint(${j})" title="Rename location">Rename</button><button class="small" onclick="event.stopPropagation();editPointAddress(${j})" title="Change address and map position">Address</button><button class="small warn" onclick="event.stopPropagation();removePoint(${j})" title="Remove">×</button></div>`}).join('')}</div>`}}
   else html+=row;
  });
  $('stops').innerHTML=html||'<p class="note">No stops added yet.</p>';
- redrawMarkers();saveData();renderStats();
+ attachPointDrag();redrawMarkers();saveData();renderStats();
+}
+window.toggleSelected=i=>{if(selectedPoints.has(i))selectedPoints.delete(i);else selectedPoints.add(i);document.querySelectorAll('.stop[data-index]').forEach(el=>{if(+el.dataset.index===i)el.classList.toggle('selected',selectedPoints.has(i))})};
+function attachPointDrag(){
+ let from=null;
+ document.querySelectorAll('.stop[data-index]').forEach(el=>{
+  el.addEventListener('dragstart',e=>{from=+el.dataset.index;el.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(from))});
+  el.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';el.classList.add('drag-over')});
+  el.addEventListener('dragleave',()=>el.classList.remove('drag-over'));
+  el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag-over');let target=+el.dataset.index;let source=from??Number(e.dataTransfer.getData('text/plain'));if(!Number.isInteger(source)||source===target||source<0||target<0||source>=points.length||target>=points.length)return;let moved=points.splice(source,1)[0];points.splice(target,0,moved);refreshPoints()});
+  el.addEventListener('dragend',()=>{el.classList.remove('dragging');document.querySelectorAll('.stop.drag-over').forEach(x=>x.classList.remove('drag-over'));from=null});
+ });
 }
 function pointShort(p){return p.customName||shortName(p.name,p.locality)}
 function shortName(name, locality=''){
@@ -91,12 +103,24 @@ function shortName(name, locality=''){
  }
  return [street,number,city].filter(Boolean).join(' ');
 }
-$('groupSelected').onclick=()=>{let ids=[...document.querySelectorAll('.pointSelect:checked')].map(x=>+x.value);if(ids.length<2)return alert('Select at least two small dots.');if(ids.some(i=>points[i].type!=='small'))return alert('Only small dots can be grouped.');let name=prompt('Name this area (for example, Koudekerke):');if(!name||!name.trim())return;let old=new Set(ids.map(i=>points[i].group).filter(Boolean));if(old.size&&!confirm('Some selected dots are already grouped. Replace their current group?'))return;ids.forEach(i=>points[i].group=name.trim());refreshPoints()};
-$('ungroupSelected').onclick=()=>{let ids=[...document.querySelectorAll('.pointSelect:checked')].map(x=>+x.value);if(!ids.length)return alert('Select dots to remove from their group.');ids.forEach(i=>delete points[i].group);refreshPoints()};
-window.movePoint=(i,d)=>{let j=i+d;if(j<0||j>=points.length)return;[points[i],points[j]]=[points[j],points[i]];refreshPoints()};
+$('groupSelected').onclick=()=>{let ids=[...selectedPoints];if(ids.length<2)return alert('Select at least two small dots.');if(ids.some(i=>points[i].type!=='small'))return alert('Only small dots can be grouped.');let name=prompt('Name this area (for example, Koudekerke):');if(!name||!name.trim())return;let old=new Set(ids.map(i=>points[i].group).filter(Boolean));if(old.size&&!confirm('Some selected dots are already grouped. Replace their current group?'))return;ids.forEach(i=>points[i].group=name.trim());refreshPoints()};
+$('ungroupSelected').onclick=()=>{let ids=[...selectedPoints];if(!ids.length)return alert('Select dots to remove from their group.');ids.forEach(i=>delete points[i].group);refreshPoints()};
 window.togglePoint=i=>{if(points[i].group)delete points[i].group;points[i].type=points[i].type==='checkpoint'?'small':'checkpoint';refreshPoints()};
 window.removePoint=i=>{points.splice(i,1);refreshPoints()};
 window.renamePoint=i=>{let p=points[i];if(!p)return;let oldLabel=pointShort(p),next=prompt('Enter your preferred name for this location:',p.customName||oldLabel);if(next===null)return;next=next.trim();if(!next)return alert('Name cannot be empty.');p.customName=next;for(const route of Object.values(routes)){for(const q of route){if(q.name===p.name&&q.lat===p.lat&&q.lon===p.lon)q.customName=next}}for(const run of runs){for(const leg of run.legs||[]){if(leg.from===oldLabel)leg.from=next;if(leg.to===oldLabel)leg.to=next}}saveData();refreshPoints();renderHistory();renderStats()};
+window.editPointAddress=async i=>{
+ let p=points[i];if(!p)return;
+ let query=prompt('Enter the new address or place for this location:',p.name||'');if(query===null)return;query=query.trim();if(!query)return alert('Address cannot be empty.');
+ if(!confirm('Look up this address and move the location on the map?'))return;
+ try{
+  let result=await geocode(query),a=result.address||{},oldLabel=pointShort(p),oldName=p.name,oldLat=p.lat,oldLon=p.lon;
+  p.name=result.display_name;p.locality=a.village||a.hamlet||a.town||a.suburb||a.city_district||a.city||a.municipality||'';p.lat=+result.lat;p.lon=+result.lon;
+  const newLabel=pointShort(p);
+  for(const route of Object.values(routes))for(const q of route){if(q.name===oldName&&q.lat===oldLat&&q.lon===oldLon){q.name=p.name;q.locality=p.locality;q.lat=p.lat;q.lon=p.lon;if(p.customName)q.customName=p.customName;}}
+  for(const run of runs)for(const leg of run.legs||[]){if(leg.from===oldLabel)leg.from=newLabel;if(leg.to===oldLabel)leg.to=newLabel;}
+  saveData();refreshPoints();renderHistory();renderStats();map.setView([p.lat,p.lon],14);
+ }catch(e){alert('Could not update address: '+e.message)}
+};
 window.renameGroup=i=>{let oldName=points[i]?.group;if(!oldName)return;let next=prompt('Enter your preferred area name:',oldName);if(next===null)return;next=next.trim();if(!next)return alert('Name cannot be empty.');points.forEach(p=>{if(p.group===oldName)p.group=next});for(const route of Object.values(routes)){route.forEach(p=>{if(p.group===oldName)p.group=next})}for(const run of runs){for(const leg of run.legs||[]){if(leg.from===`Area: ${oldName}`)leg.from=`Area: ${next}`;if(leg.to===`Area: ${oldName}`)leg.to=`Area: ${next}`}for(const a of run.areaTimes||[]){if(a.name===oldName)a.name=next}}saveData();refreshPoints();renderHistory();renderStats()};
 function redrawMarkers(){markers.forEach(m=>map.removeLayer(m));markers=[];points.forEach((p,i)=>{if(!p.lat||!p.lon)return;let color=p.type==='checkpoint'?'#1565c0':'#64748b';let icon=L.divIcon({className:'',html:`<div style="width:26px;height:26px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 1px 5px #0005;color:white;text-align:center;line-height:20px;font-weight:bold">${i+1}</div>`,iconSize:[26,26],iconAnchor:[13,13]});let m=L.marker([p.lat,p.lon],{icon}).addTo(map).bindPopup(`${i+1}. ${safe(pointShort(p))}<br>${p.type==='checkpoint'?'Timing checkpoint':'Small dot'}`);markers.push(m)})}
 async function geocode(q){let url='https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&q='+encodeURIComponent(q);let r=await fetch(url);if(!r.ok)throw new Error('Address lookup failed');let d=await r.json();if(!d.length)throw new Error('Address not found. Try a more specific address.');return d[0]}
