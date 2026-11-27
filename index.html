@@ -247,9 +247,9 @@ function completeNextSection(now=Date.now(),source='manual'){
 
 function targetForActive(){if(!activeRun)return null;return activeRun.sequence[activeRun.nextCp]||null}
 function clearNavLine(){if(navRouteLine){map.removeLayer(navRouteLine);navRouteLine=null}}
-function updateGpsMap(here,speedMps=null){lastGpsPosition=here;const firstFix=!userMarker;if(!userMarker){userMarker=L.circleMarker([here.lat,here.lon],{radius:8,color:'#fff',weight:3,fillColor:'#2563eb',fillOpacity:1}).addTo(map).bindPopup('Your GPS location')}else userMarker.setLatLng([here.lat,here.lon]);
+function updateGpsMap(here,speedMps=null){lastGpsPosition=here;const firstFix=!userMarker;if(!userMarker){userMarker=L.circleMarker([here.lat,here.lon],{radius:9,color:'#fff',weight:3,fillColor:'#f97316',fillOpacity:1}).addTo(map).bindPopup('Your GPS location')}else userMarker.setLatLng([here.lat,here.lon]);
  // GPS-follow with speed-based automatic zoom (Waze-style approximation).
- const kmh=Math.max(0,(Number(speedMps)||0)*3.6);let desiredZoom=kmh<=5?17:kmh<=20?16:kmh<=50?15:kmh<=80?14:kmh<=110?13:12;
+ const kmh=Math.max(0,(Number(speedMps)||0)*3.6);let desiredZoom=kmh<=5?17:kmh<=40?16:kmh<=65?15:kmh<=95?14:13;
  if(firstFix||Math.abs(map.getZoom()-desiredZoom)>=1)map.setView([here.lat,here.lon],desiredZoom,{animate:!firstFix});else map.panTo([here.lat,here.lon],{animate:true,duration:.4});
  updateRunMarkers();updateNavigation(here,firstFix)}
 function updateRunMarkers(){if(!activeRun)return;const seq=activeRun.sequence,completed=new Set();seq.slice(0,activeRun.nextCp).forEach(it=>{if(it.type==='area')it.members.forEach(m=>completed.add(m.index));else completed.add(it.index)});const target=seq[activeRun.nextCp];markers.forEach(m=>{const i=m.pointIndex;const p=points[i];let color=completed.has(i)?'#16a34a':(target&&target.index===i?'#2563eb':'#9ca3af');const icon=L.divIcon({className:'',html:`<div style="width:26px;height:26px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 1px 5px #0005;color:white;text-align:center;line-height:20px;font-weight:bold">${i+1}</div>`,iconSize:[26,26],iconAnchor:[13,13]});m.setIcon(icon)});updateStopStatuses()}
