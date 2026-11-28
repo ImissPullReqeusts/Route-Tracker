@@ -39,10 +39,52 @@ input{min-width:0;flex:1}button{cursor:pointer;font-weight:600}button.primary{ba
 
 .history-route{border:1px solid #e2e8f0;border-radius:12px;margin:9px 0;overflow:hidden}.history-route>summary{cursor:pointer;padding:11px;background:#f8fafc;font-weight:700;display:flex;justify-content:space-between;gap:8px}.history-route-body{padding:10px}.history-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin:8px 0}.calendar-day{min-height:38px;padding:4px 2px;border:1px solid #e2e8f0;border-radius:7px;background:#fff;text-align:center;font-size:.8rem;cursor:pointer}.calendar-day.muted{opacity:.35}.calendar-day.has-run{border-color:#60a5fa;background:#eff6ff;font-weight:700}.calendar-day.selected{outline:2px solid #2563eb;outline-offset:1px}.calendar-day .day-dot{display:block;color:#2563eb;font-size:.65rem;line-height:1}.calendar-weekday{text-align:center;font-size:.7rem;color:#64748b;font-weight:700}.history-run-select{border:1px solid #dbeafe;background:#f8fafc;border-radius:10px;padding:9px;margin:6px 0}.history-run-select.selected-baseline{border-color:#15803d;background:#f0fdf4}.history-run-select.selected-comparison{border-color:#b91c1c;background:#fef2f2}.history-compare-summary{border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;padding:12px;margin-bottom:10px}.history-compare-summary .delta{font-size:1.3rem;font-weight:800}.history-compare-summary .delta.faster{color:#15803d}.history-compare-summary .delta.slower{color:#b91c1c}.history-compare-section{padding:6px 0;border-bottom:1px solid #e5e7eb;font-size:.84rem}.history-compare-section:last-child{border-bottom:0}.history-run-detail{margin:8px 0;padding:12px;border:1px solid #93c5fd;border-radius:12px;background:#eff6ff}.history-detail-leg{padding:7px 0;border-bottom:1px solid #dbeafe;font-size:.86rem}.history-detail-leg:last-child{border-bottom:0}@media(max-width:450px){.calendar-day{min-height:34px}.history-route>summary{font-size:.9rem}}
 
+
+/* Dark theme */
+body[data-theme="dark"]{background:#111827;color:#e5e7eb}
+body[data-theme="dark"] .panel{background:#1f2937;box-shadow:0 2px 10px #0005}
+body[data-theme="dark"] input,body[data-theme="dark"] select,body[data-theme="dark"] button{background:#374151;color:#e5e7eb;border-color:#4b5563}
+body[data-theme="dark"] input::placeholder{color:#9ca3af}
+body[data-theme="dark"] button.primary{background:#2563eb;border-color:#2563eb;color:#fff}
+body[data-theme="dark"] button.warn{background:#422c20;border-color:#9a5b2b;color:#fed7aa}
+body[data-theme="dark"] header #languageSelect{background:#374151;color:#e5e7eb;border-color:#4b5563}
+body[data-theme="dark"] header #languageSelect option{background:#374151;color:#e5e7eb}
+body[data-theme="dark"] #navCard{background:#172b45;border-color:#315a8a}
+body[data-theme="dark"] #navInstruction{color:#cbd5e1}
+body[data-theme="dark"] .run-controls-panel{background:#263244;border-color:#40516a}
+body[data-theme="dark"] .stop{background:#293546;border-color:#3e4c60}
+body[data-theme="dark"] .stop .num{background:#475569;color:#e5e7eb}
+body[data-theme="dark"] .stop.selected,body[data-theme="dark"] .stop.current{background:#263c58;border-color:#60a5fa}
+body[data-theme="dark"] .stop.completed{background:#1e3a2e;border-color:#22c55e}
+body[data-theme="dark"] .stop.completed .num{background:#16a34a;color:#fff}
+body[data-theme="dark"] .stop.current .num{background:#2563eb;color:#fff}
+body[data-theme="dark"] .groupbox{background:#1b2c43;border-color:#38577b}
+body[data-theme="dark"] .groupbox .grouphead{color:#93c5fd}
+body[data-theme="dark"] .groupbox .stop{background:#293546}
+body[data-theme="dark"] .groupbox.area-completed{background:#1e3a2e;border-color:#22c55e}
+body[data-theme="dark"] .groupbox.area-current{background:#263c58;border-color:#60a5fa}
+body[data-theme="dark"] .badge{background:#263f63;color:#bfdbfe}
+body[data-theme="dark"] .badge.smallstop{background:#374151;color:#d1d5db}
+body[data-theme="dark"] .progress-wrap{background:#374151}
+body[data-theme="dark"] .stat{background:#263244}
+body[data-theme="dark"] .comparebox,body[data-theme="dark"] .history-route>summary,body[data-theme="dark"] .history-run-select,body[data-theme="dark"] .history-compare-summary{background:#263244}
+body[data-theme="dark"] .comparecell{background:#374151}
+body[data-theme="dark"] .history-route,body[data-theme="dark"] .history-calendar .calendar-day,body[data-theme="dark"] .history-run-select,body[data-theme="dark"] .history-compare-summary{border-color:#475569}
+body[data-theme="dark"] .calendar-day{background:#263244;color:#e5e7eb;border-color:#475569}
+body[data-theme="dark"] .calendar-day.has-run{background:#1e3a5f;border-color:#60a5fa}
+body[data-theme="dark"] .calendar-day.selected{outline-color:#60a5fa}
+body[data-theme="dark"] .history-run-select.selected-baseline{background:#1e3a2e;border-color:#22c55e}
+body[data-theme="dark"] .history-run-select.selected-comparison{background:#3f2428;border-color:#ef4444}
+body[data-theme="dark"] .history-run-detail{background:#1e3552;border-color:#60a5fa}
+body[data-theme="dark"] .history-detail-leg{border-color:#37506e}
+body[data-theme="dark"] .historyleg,body[data-theme="dark"] .historyitem,body[data-theme="dark"] .history-compare-section{border-color:#374151}
+body[data-theme="dark"] .note,body[data-theme="dark"] .stop .sub,body[data-theme="dark"] .historymeta{color:#9ca3af}
+body[data-theme="dark"] #status{color:#cbd5e1}
+body[data-theme="dark"] .faster{color:#4ade80}body[data-theme="dark"] .slower{color:#fbbf24}
 </style>
 </head>
 <body>
-<header><h1>Route Tracker</h1><select id="languageSelect" aria-label="Language"><option value="en">🇬🇧 English</option><option value="nl">🇳🇱 Nederlands</option><option value="es">🇪🇸 Español</option><option value="de">🇩🇪 Deutsch</option><option value="fr">🇫🇷 Français</option></select></header>
+<header><h1>Route Tracker</h1><div class="row" style="gap:6px;flex-wrap:nowrap"><button id="themeToggle" class="small" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">🌙</button><select id="languageSelect" aria-label="Language"><option value="en">🇬🇧 English</option><option value="nl">🇳🇱 Nederlands</option><option value="es">🇪🇸 Español</option><option value="de">🇩🇪 Deutsch</option><option value="fr">🇫🇷 Français</option></select></div></header>
 <main>
 <section class="panel">
 <h2 data-i18n="create">Create / edit route</h2>
@@ -77,6 +119,9 @@ function applyLanguage(){let lang=currentLanguage(),d=translations[lang]||transl
  const routeNote=document.querySelector('.note[data-note="route"]')||[...document.querySelectorAll('.note')].find(x=>x.textContent.includes('Route line is calculated'));if(routeNote){routeNote.dataset.note='route';routeNote.textContent=d.routeNote}
  const stopNote=document.querySelector('.note[data-note="stops"]')||[...document.querySelectorAll('.note')].find(x=>x.textContent.includes('Tap locations to select'));if(stopNote){stopNote.dataset.note='stops';stopNote.textContent=d.stopNote}
  refreshPoints();if(activeRun){updateStopStatuses();updateProgress();updateRunMarkers()}renderStats();renderHistory();renderComparison();}
+function applyTheme(theme){document.body.dataset.theme=theme==='dark'?'dark':'light';localStorage.setItem('rct_theme',document.body.dataset.theme);const btn=$('themeToggle');if(btn){btn.textContent=theme==='dark'?'☀️':'🌙';btn.title=theme==='dark'?'Switch to light mode':'Switch to dark mode';btn.setAttribute('aria-label',btn.title)}}
+applyTheme(localStorage.getItem('rct_theme')||'light');
+$('themeToggle').addEventListener('click',()=>applyTheme(document.body.dataset.theme==='dark'?'light':'dark'));
 $('languageSelect').addEventListener('change',e=>{const lang=e.target.value;localStorage.setItem('rct_language',lang);const u=new URL(location.href);u.searchParams.set('lang',lang);history.replaceState(null,'',u);applyLanguage()});
 let points=[],runs=[],routes={},activeRun=null,clockInterval=null,routeLine=null,markers=[],gpsWatch=null,selectedPoints=new Set(),userMarker=null,navRouteLine=null,lastNavFetch=0,lastGpsPosition=null,navRequestKey=null,routeCumulativeMeters=[],routeDistanceReady=false,routeGeometry=null,routeGeometryCum=[],lastGpsHeading=0;let wakeLock=null,selectedCompareRoute=null;let historyBaselineId=null,historyCompareId=null,historyDetailId=null,historyMonthByRoute={},historyDayByRoute={},historyOpenByRoute={};let gpsLastAcceptedAt=0,gpsLastAcceptedKm=null,gpsLastAcceptedPosition=null,gpsInitialized=false;
 const map=L.map('map').setView([52.2,5.3],7);
